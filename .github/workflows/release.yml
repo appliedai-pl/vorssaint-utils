@@ -120,7 +120,7 @@ jobs:
         run: ./Tools/ci-setup-signing.sh
 
       - name: Build
-        run: ./build.sh
+        run: ./build.sh --arch=arm64
 
       - name: Verify release signature
         run: |

@@ -5,7 +5,7 @@ under GPL-3.0-or-later unless stated otherwise.
 
 ## Getting started
 
-You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools.
+You need macOS 14 or newer, an Apple Silicon or Intel Mac, and the Xcode Command Line Tools.
 The project builds with `build.sh`, without an Xcode project or external package
 dependencies. `Package.swift` supports editor indexing; it does not assemble or
 sign the app bundle.
@@ -22,6 +22,13 @@ To install and launch the separate Developer app, use `./build.sh --dev --instal
 It has its own preferences and permissions and does not replace the official app.
 A plain `./build.sh` builds the optimized variant used by CI; its health check is
 `./build/Vorssaint --selftest`.
+
+Builds default to the host architecture. Use `./build.sh --arch=x86_64` for
+Intel or `./build.sh --arch=arm64` for Apple Silicon. The same selection applies
+to the app, fan helper, Now Playing library and tests, with separate incremental
+object caches for each architecture. Cross-built executables must be runnable
+on the build host: Intel builds on Apple Silicon need Rosetta, while Apple
+Silicon builds need an Apple Silicon host for the helper selftest.
 
 ### Stable signing
 

@@ -32,6 +32,10 @@ DEV=0
 INSTALL=0
 TEST=0
 TEST_ARGS=()
+BUILD_ARCH="$(uname -m)"
+if [[ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" == 1 ]]; then
+    BUILD_ARCH="arm64"
+fi
 for arg in "$@"; do
     case "$arg" in
         --dev)     DEV=1 ;;
@@ -39,8 +43,15 @@ for arg in "$@"; do
         --test)    TEST=1 ;;
         --test-suite=*) TEST=1; TEST_ARGS+=("--suite=${arg#*=}") ;;
         --list-tests) TEST=1; TEST_ARGS+=(--list) ;;
+        --arch=*) BUILD_ARCH="${arg#*=}" ;;
     esac
 done
+
+case "$BUILD_ARCH" in
+    arm64|x86_64) ;;
+    *) echo "✗ Unsupported architecture: $BUILD_ARCH (expected arm64 or x86_64)" >&2; exit 1 ;;
+esac
+TARGET="$BUILD_ARCH-apple-macosx14.0"
 
 if (( DEV )); then
     APP_NAME="Vorssaint (Developer)"
@@ -62,7 +73,6 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
-TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
@@ -247,7 +257,7 @@ discard_test_preferences() {
 # keyboard-data and media fixtures. No application windows or device capture.
 if (( TEST )); then
     python3 Tests/generate_sources.py
-    TEST_OBJECT_DIR="build/objects/tests"
+    TEST_OBJECT_DIR="build/objects/$BUILD_ARCH/tests"
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
         Sources/Vorssaint/Services/Media/MediaSupport.swift
@@ -556,19 +566,21 @@ if (( TEST )); then
     swiftc -Onone -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
         -module-name VorssaintTests -output-file-map "$TEST_OUTPUT_FILE_MAP" \
         -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
-        "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${TEST_SOURCES[@]}" -o build/metrics-tests
+        "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${TEST_SOURCES[@]}" -o "$TEST_OBJECT_DIR/metrics-tests"
+    cp "$TEST_OBJECT_DIR/metrics-tests" build/metrics-tests
     test_status=0
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
     if (( ${#TEST_ARGS} == 0 )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
         ./Tests/UninstallSpacesTests.sh || test_status=1
         ./Tests/DeveloperInstallIsolationTests.sh || test_status=1
+        ./Tests/BuildArchitectureTests.sh || test_status=1
     fi
     discard_test_preferences || test_status=1
     exit $test_status
 fi
 
-echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
+echo "▸ Compiling ($BUILD_CONFIGURATION, $BUILD_ARCH) against $(basename "$SDK")…"
 APP_SOURCES=(Sources/Vorssaint/**/*.swift)
 if (( ! DEV )); then
     # A release starts from an empty build directory, so nothing an earlier
@@ -577,7 +589,7 @@ if (( ! DEV )); then
     # changed since, and a fresh checkout has none.
     find build -mindepth 1 -maxdepth 1 ! -name objects -exec rm -rf {} + 2>/dev/null || true
 fi
-APP_OBJECT_DIR="build/objects/$EXECUTABLE"
+APP_OBJECT_DIR="build/objects/$BUILD_ARCH/$EXECUTABLE"
 mkdir -p build "$APP_OBJECT_DIR"
 APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
 write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
@@ -589,7 +601,8 @@ swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysc
     -output-file-map "$APP_OUTPUT_FILE_MAP" \
     -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
     "${BUILD_VARIANT_FLAGS[@]}" \
-    "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+    "${APP_SOURCES[@]}" -o "$APP_OBJECT_DIR/$EXECUTABLE"
+cp "$APP_OBJECT_DIR/$EXECUTABLE" "build/$EXECUTABLE"
 
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \

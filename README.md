@@ -208,7 +208,7 @@ See the [permissions guide](docs/PERMISSIONS.md) for which features need access 
 
 ## What you need
 
-- A Mac with Apple Silicon
+- A Mac with Apple Silicon or an Intel Mac (local builds)
 - macOS 14 Sonoma or newer
 
 ### Build it yourself
@@ -219,6 +219,21 @@ cd vorssaint-utils
 ./build.sh --dev            # build the separate Developer variant
 ./build.sh --dev --install  # install and launch it
 ```
+
+The build defaults to the current Mac's architecture. For an Intel build, use
+`./build.sh --arch=x86_64`; the app is staged at `build/stage/Vorssaint.app`.
+All bundled executables and libraries target macOS 14 or newer. Cross-building
+Intel binaries on Apple Silicon requires Rosetta to run the build's helper
+selftest and any selected tests. Official release downloads remain Apple Silicon
+builds.
+
+For everyday use of a local Intel build, prefer `./build.sh --dev --arch=x86_64`.
+Its separate Developer identity does not auto-update to an official Apple Silicon
+release; the bundle is at `build/stage.noindex/Vorssaint (Developer).app`.
+
+Hardware-dependent features retain their existing capability checks. The island
+can float as a capsule on displays without a physical notch, including Intel Macs;
+XDR extra brightness still requires a supported built-in display.
 
 Xcode Command Line Tools are the only requirement. The [contributing guide](CONTRIBUTING.md) covers the layout and conventions. Official builds come only from the maintainer: the GPL covers the source, while the Vorssaint name, icon and look are covered by [TRADEMARKS.md](TRADEMARKS.md), so forks need their own identity.
 
